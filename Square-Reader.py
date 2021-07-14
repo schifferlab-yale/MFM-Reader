@@ -5,7 +5,6 @@ This is a file meant to read data from a square lattice MFM sample. Make sure th
 
 import cv2
 import matplotlib.pyplot as plt
-import math
 import numpy as np
 from random import randint
 import argparse

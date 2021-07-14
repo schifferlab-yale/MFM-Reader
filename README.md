@@ -60,7 +60,6 @@ Lastly, it is possible for the user to make manual corrections to the sample poi
 <img src="docs/align_rows+cols.png" width=300/>
 4. In areas where the grid is misaligned, add additional reference points and drag them to adjust the location of the sample points.<br>
 <img src="docs/align_reference_points.png" width=300/>
-*Note that reference points were added in the area with a lot of green circles and moved slightly to reduce the number of errors.*
 5. After the majority of points have been aligned correctly, manually correct errors and mark points as unreadable if necessary.
 6. Close the program (usually by hitting "Enter"). The data should save automatically.
 
@@ -69,15 +68,212 @@ Lastly, it is possible for the user to make manual corrections to the sample poi
 The premise of this program is that a movable, stretchable grid can be aligned over top of an MFM phase image in order to sample the image at the correct island locations. All code relating the implementation of this "adjustable grid" is contained in the abstract `NodeNetwork` class inside <span>nodeNetwork.py</span>. `NodeNetwork` is also responsible for determining the island color at each sample point. <br><br>
 Each lattice-specific implementation needs to import <span>nodeNetwork.py</span> and declare a new class which inherits from `NodeNetwork`. From here, the program should implement several methods inside the which relate to that specific lattice. See the next section for more details.
 
+# Modification for a new lattice
+This section will cover the basic process for creating a program to work with the new lattice. As an example, I will demonstrate with the square lattice.<br>
+<br>
+All this code is available in <span>docs/exampleImplementation.py</span> 
+## 1. Import the relevant libraries
+```python
+import cv2
+import numpy as np
+import argparse
+from nodeNetwork import *
+```
 
-## TODO
+
+## 2. Set up a way to get the image from the user. 
+<br>For this example I will use argparse
+```python
+parser = argparse.ArgumentParser(description='MFM image analysis')
+parser.add_argument('image', metavar='image', type=str, nargs='+',help='Path of image')
+
+args=parser.parse_args()
+
+try:
+    image = cv2.imread(args.image[0])
+    image = cv2.resize(image, (1000,1000))
+except:
+    raise FileNotFoundError("File not found")
+```
+
+
+## 3. Extend the NodeNetwork class
+```python
+class SquareNodeNetwork(NodeNetwork):
+    def getSamplePointsFromSquare(self, topLeft, topRight, bottomLeft, bottomRight, row=0, col=0):
+        pass#we will fill this in in the next step
+
+    def hasError(self, samplePoints, rowI, vertexI, pointI):
+        return False#do this for now
+
+```
+The one method that **must** be implemented is `getSamplePointsFromSquare()`. This is what tells the program where to look in the image for the black/white islands. The method `hasError()` must also be implemented but you can just `return False` if you are working with a lattice where there is no way to detect errors or you want to implement it later. However, it is highly recommended that you do implement this method, as it makes the process of using the program significantly easier.
+
+## 4. Implement `getSamplePointsFromSquare()`<br>
+This method is given the four corners of a square on the grid and must return where the sample points will be in that square. For this example, I will have users line up the grid with square areas in the sample and each grid box will have 4 sample points. (See below)
+<br>
+<img src="docs/4pointsPerSquare.png" width=200>
+<br>
+`getSamplePointsFromSquare()` is also given a `row` and `column` value. In some lattice types, not every grid box will contain the same exact pattern. This allows you to implement additional logic e.g. "`if row%2==0: [etc]`". This is not used in the square lattice.
+<br>
+<br>
+The output of `getSamplePointsFromSquare()` should be an array of `[x,y]` coordinants. If there are no points it should be `[]`, if there is one point it should be `[[x,y]]` and if there are multiple points it should be `[[x1,y1],[x2,y2],etc]`.
+
+### Code:
+Don't worry about the specifics of how these points are calculated. This will look completely different for a different lattice type. The method here is just using the four corners to calculate four positions slightly off each edge.
+
+```python
+def getSamplePointsFromSquare(self, topLeft, topRight, bottomLeft, bottomRight, row=0, col=0):
+        
+        shiftConstant=0.25#How far away the sample points are from the edqe of the square 0=right on the edge, 1=on the opposite edge
+
+        #get center of sides of square
+        centerTop=[topLeft[0]+(topRight[0]-topLeft[0])/2, topLeft[1]+(topRight[1]-topLeft[1])/2]
+        centerLeft=[topLeft[0]+(bottomLeft[0]-topLeft[0])/2, topLeft[1]+(bottomLeft[1]-topLeft[1])/2]
+        centerRight=[topRight[0]+(bottomRight[0]-topRight[0])/2, topRight[1]+(bottomRight[1]-topRight[1])/2]
+        centerBottom=[bottomLeft[0]+(bottomRight[0]-bottomLeft[0])/2, bottomLeft[1]+(bottomRight[1]-bottomLeft[1])/2]
+
+        #square width and height
+        width=(centerRight[0]-centerLeft[0])
+        height=(centerBottom[1]-centerTop[1])
+
+        #sample points are stored as [x,y]
+        topSamplePoint=[centerTop[0],centerTop[1]+height*shiftConstant]
+        leftSamplePoint=[centerLeft[0]+width*shiftConstant,centerLeft[1]]
+        rightSamplePoint=[centerRight[0]-width*shiftConstant,centerRight[1]]
+        bottomSamplePoint=[centerBottom[0], centerBottom[1]-height*shiftConstant]
+
+        #return the four sample points in this square
+        fourSamplePoints=[topSamplePoint,leftSamplePoint,rightSamplePoint,bottomSamplePoint]
+        return fourSamplePoints
+```
+
+## 5. (Optional) Implement `hasError()`
+<br>
+This method  is given an array of all the samplePoints, as well as the current row, column(vertex), and point index within that cell. It must return `True` or `False` depending on whether an error is detected in that cell.
+<br><br>
+For this example, I will take advantage of the fact that adjacent cells must be opposite colors. If a point is the same color as the adjacent cell, it is an error.
+<br><br>
+
+*Note about indexing: The third dimension in the `samplePoints` array will be in the same order as it was specified in the `getSamplePointsFromSquare()` method. The fourth dimension will be `[x,y,color]`.*
+
+```python
+def hasError(self, samplePoints, rowI, vertexI, pointI):
+
+        #only look at the right and bottom sample points
+        if pointI==0 or pointI==1:
+            return False
+
+        #get the current row and grid cell
+        row = samplePoints[rowI]
+        vertex=row[vertexI]
+
+        if pointI==2:#if we are on the right side of the cell
+
+            #if this is not the last cell in the row, check that the cell to the right has the opposite color
+            if vertexI < len(row)-1:
+                
+                #if the colors are the same, this is the error
+                if(vertex[2][2] == row[vertexI+1][1][2]):
+                    return True
+                    
+        #same process as above but for the bottom point
+        if pointI==3:
+            if rowI < len(samplePoints)-1:
+                if(vertex[3][2] == samplePoints[rowI+1][vertexI][0][2]):
+                    return True
+        
+        #false by default
+        return False
+```
+## 6. Instantiate the class and create a `show()` function
+```python
+#This specifies the four corners of the grid, the # of rows and columns, and the MFM image it is reading.
+n=SquareNodeNetwork(Node(10,10),Node(800,10),Node(30,800),Node(700,700),10,10,image)
+
+def show():
+    imWidth=1000;
+    imHeight=1000;
+
+    outputImage=image.copy()
+    n.draw(outputImage)#draw the grid over the image
+    cv2.imshow("window",outputImage)
+```
+
+## 7. Attach some mouse controls
+```python
+def mouse_event(event, x, y,flags, param):
+
+    #add a reference point on right click
+    if event == cv2.EVENT_RBUTTONDOWN:
+        n.splitAtClosestPoint(x,y)
+    
+    #select a point for dragging on left click
+    elif event ==cv2.EVENT_LBUTTONDOWN:
+        n.selectNearestFixedPoint(x,y)
+        n.dragging=True
+    
+    #update dragging
+    elif event==cv2.EVENT_MOUSEMOVE:
+        n.updateDragging(x,y)
+
+    #stop dragging on mouse up
+    elif event==cv2.EVENT_LBUTTONUP:
+        n.dragging=False
+        n.setSamplePoints()
+
+    show()
+
+show();
+cv2.setMouseCallback('window', mouse_event)
+```
+## 8. Add keyboard controls
+This will act as both the keyboard controls and the main loop.
+```python
+while True:
+    key=cv2.waitKey(0)
+    if(key==ord("\r")):
+        break;
+    elif(key==ord("r")):
+        n.addRow()
+    elif(key==ord("e")):
+        n.removeRow()
+    elif(key==ord("c")):
+        n.addCol()
+    elif(key==ord("x")):
+        n.removeCol()
+    
+    show()
+```
+
+## 9. End the program and save.
+```python
+with open('output.csv', 'w') as file:
+    file.write(n.dataAsString())
+
+outputImage=np.zeros((1000,1000,3), np.uint8)
+outputImage[:,:]=(127,127,127)
+n.drawData(outputImage)
+cv2.imwrite("output.jpg", np.float32(outputImage));
+
+cv2.destroyAllWindows()
+```
+
+## 10. Other methods you might want to implement
+<br>
+These methods are all optional but will likely make using the program easier.
+
+-  `hasError()`: If you haven't done this already
+- `drawData()`: Specify a nice-looking output image format
+- `dataAsString()`: Change how the data is written to the file. For example, this basic program will include both halves of every island (in a weird format). You would likely want to modify this so that it only includes information about each island once. (See the example SquareLattice program for more details).
+- `correctError()`: An experimental method that would allow the lattice to correct errors automatically.
+
+
+# To Do
 - Put a border around the images to make dragging points easier
 - Add buttons controls
 - Save manual corrections, even after grid is adjusted
 
 
-## Technical Stuff
-### <span>nodeNetwork.py</span>
-### Modification for a different lattice design
 
 

@@ -1,5 +1,5 @@
 # MFM Image Reader
-This repository contains code intended to assist in the conversion from MFM scans to raw data for artificial spin ice. This folder includes the base code for extracting island data from several different lattice times, as well as some example testing images.
+This repository contains code intended to assist in the conversion from MFM scans to raw data for artificial spin ice. This folder includes the base code for extracting island data from several different lattice types, as well as some example testing images.
 \
 For anyone working on this code in the future, please feel free to email me (Grant Fitez) at grant.fitez@yale.edu or grantfitez@gmail.com with any questions.
 

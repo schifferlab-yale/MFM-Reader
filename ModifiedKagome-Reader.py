@@ -2,6 +2,7 @@ import cv2 #for drawing images
 import numpy as np #cv2 likes numpy arrays  
 import argparse #to get the image from the user
 from nodeNetwork import * #Use this as the base class 
+import math
 
 #Set up argparser to allow for input image
 parser = argparse.ArgumentParser(description='Perpendicular Kagome MFM image analysis')
@@ -9,15 +10,26 @@ parser.add_argument('image', metavar='image', type=str, nargs='+',help='Path of 
 args=parser.parse_args()
 
 #How big the display window(s) are
-WINDOWSIZE=500
+WINDOWSIZE=600
 
 #read image
-image = cv2.imread(args.image[0])
+image = cv2.imread(args.image[0],-1)
 
-#cv2.imshow(image)
-#cv2.waitkey(0)
+imShape=image.shape
+
+#convert tiff
+if len(imShape)==2:
+    convertedImage=np.empty((imShape[0],imShape[1],3));
+    for rowI in range(len(image)):
+        for colI, val in enumerate(image[rowI]):
+            convertedImage[rowI][colI]=np.array([val,val,val])
+    image=convertedImage
+
+
 if image is None:
     raise FileNotFoundError("Cannot find image")
+
+
 
 #resize image (makes it easier to work with)
 image=cv2.resize(image,(WINDOWSIZE,WINDOWSIZE))
@@ -31,6 +43,7 @@ gridPattern=[
     [0,1,0,1],
     [1,0,0,0],
     [0,1,0,1]
+
 ]
 
 
@@ -89,13 +102,13 @@ class PerpendicularKagomeReader(NodeNetwork):
 #make the grid overlay by giving it the four corners, the number of rows and columns, the image we want to sample, and how big the sample area should be
 #when it determines the color of a point in an image, it doesn't just look at that one point, it averages in the area around it. This is what pointSampleRadius is for.
 #pointSampleRadius should be roughly half the width of a single dot
-n=PerpendicularKagomeReader(Node(10,10),Node(WINDOWSIZE-10,10),Node(10,WINDOWSIZE-10),Node(WINDOWSIZE-10,WINDOWSIZE-10),15,15,image,pointSampleRadius=5)
+n=PerpendicularKagomeReader(Node(10,10),Node(WINDOWSIZE-10,10),Node(10,WINDOWSIZE-10),Node(WINDOWSIZE-10,WINDOWSIZE-10),15,15,image,pointSampleRadius=5,borderWidth=250)
 
 def show():
 
     #this first ouput draws the grid and sample points over our main image
-    outputImage=image.copy()
-    n.draw(outputImage)
+    outputImage=n.getBaseImage()
+    n.draw(outputImage,samplePointSize=4)
     cv2.imshow("window",outputImage)
 
     #this is the preview image

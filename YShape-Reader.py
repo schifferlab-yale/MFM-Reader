@@ -17,18 +17,20 @@ parser.add_argument("-t", "--trim", help="Set if the offset row is shorter than 
 parser.add_argument("-a", "--reference_image", help="image of the height(to help line up the sample points)", type=str)
 args=parser.parse_args()
 
+WINDOWSIZE=800
+
 
 #read image and reference image
 try:
     image = cv2.imread(args.image[0])
-    image = cv2.resize(image, (1000,1000))
+    image=cv2.resize(image,(WINDOWSIZE,WINDOWSIZE))
 except:
     raise Exception("File not found")
 
 if args.reference_image is not None:
     try:
         height_image = cv2.imread(args.reference_image)
-        height_image = cv2.resize(height_image, (1000,1000))
+        height_image = cv2.resize(height_image, (WINDOWSIZE,WINDOWSIZE))
     except:
         raise Exception("File not found")
 else:

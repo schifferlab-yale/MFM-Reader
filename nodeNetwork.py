@@ -54,8 +54,21 @@ def xyArrayToIntTuple(arr):
 
 #main class
 class NodeNetwork:
-    def __init__(self,topLeft,topRight,bottomLeft,bottomRight,rows, cols, image,pointSampleRadius=5):
-        self.image=image;
+    def __init__(self,topLeft,topRight,bottomLeft,bottomRight,rows, cols, image,pointSampleRadius=5,borderWidth=0):
+        #make border
+        self.borderWidth=borderWidth
+        imHeight=len(image)
+        imWidth=len(image[0])
+        base=np.zeros((imHeight+2*borderWidth,imWidth+2*borderWidth,3),dtype=np.uint8)
+        base[:,:]=127
+        base[borderWidth:imHeight+borderWidth,borderWidth:imWidth+borderWidth]=image
+        image=base
+        
+
+        self.image=image
+        cv2.waitKey(0)
+
+
         #how far around the pixel to look when determining the color of a point
         assert(pointSampleRadius%2==1)#must be odd
         self.pointSampleWidth=pointSampleRadius
@@ -93,6 +106,9 @@ class NodeNetwork:
         self.samplePoints=[]
         self.setSamplePoints()
     
+    def getBaseImage(self):
+        return self.image.copy()
+
     #turn an image black and white so that it can be easily sampled to find the color of a point
     def makeBWImage(self,image):
         avg_color_per_row = np.average(image, axis=0)
@@ -103,7 +119,7 @@ class NodeNetwork:
         blur = cv2.GaussianBlur(image,(self.pointSampleWidth,self.pointSampleWidth),0)
         self.blurredImage=blur
         ret,self.BWImage=cv2.threshold(blur,avg,255,cv2.THRESH_BINARY)
-        #cv2.imwrite("bw.jpg", self.BWImage);
+        cv2.imwrite("bw.jpg", self.BWImage);
 
     def countErrors(self):
         count=0
@@ -141,7 +157,7 @@ class NodeNetwork:
 
 
     #draws the current grid onto an image
-    def draw(self,im):
+    def draw(self,im,samplePointSize=2):
 
         #draw all fixed points
         sortedPoints=self.getSortedFixedPoints()
@@ -184,9 +200,10 @@ class NodeNetwork:
 
         #draw the sample points if we are not dragging
         if not self.dragging:
-            self.drawSamplePoints(im)
+            self.drawSamplePoints(im,size=samplePointSize)
 
-    def drawSamplePoints(self,im):
+
+    def drawSamplePoints(self,im,size=2):
         samplePoints=self.samplePoints
         for (rowI, row) in enumerate(samplePoints):
             for (vertexI, vertex) in enumerate(row):
@@ -199,7 +216,7 @@ class NodeNetwork:
                     elif(point[2]==-1):
                         color=BLUE
 
-                    im=cv2.circle(im,(int(point[0]),int(point[1])),2,color,-1)
+                    im=cv2.circle(im,(int(point[0]),int(point[1])),size,color,-1)
 
                     #Check for errors:
                     if(self.hasError(samplePoints,rowI,vertexI,pointI)):
@@ -284,7 +301,7 @@ class NodeNetwork:
     
     #same as sampling a color but only returns 1 or -1
     def sampleImage(self,x,y):
-        if int(y)<0 or int(y)>=len(self.BWImage) or int(x)<0 or int(x)>=len(self.BWImage[int(y)]):
+        if int(y)<self.borderWidth or int(y)>=len(self.BWImage)-self.borderWidth or int(x)<self.borderWidth or int(x)>=len(self.BWImage[int(y)])-self.borderWidth:
             return 0
         color=self.BWImage[int(y)][int(x)][0]
         if(color>127):

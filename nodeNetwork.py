@@ -54,7 +54,7 @@ def xyArrayToIntTuple(arr):
 
 #main class
 class NodeNetwork:
-    def __init__(self,topLeft,topRight,bottomLeft,bottomRight,rows, cols, image,pointSampleRadius=5,borderWidth=0):
+    def __init__(self,topLeft,topRight,bottomLeft,bottomRight,rows, cols, image,pointSampleRadius=5,borderWidth=0,colorBias=0):
         #make border
         self.borderWidth=borderWidth
         imHeight=len(image)
@@ -65,6 +65,7 @@ class NodeNetwork:
         image=base
         
 
+        self.colorBias=colorBias
         self.image=image
         cv2.waitKey(0)
 
@@ -116,9 +117,15 @@ class NodeNetwork:
         avg=np.average(avg_color,axis=0)
         print("Average color:",avg)
 
-        blur = cv2.GaussianBlur(image,(self.pointSampleWidth,self.pointSampleWidth),0)
+        if(self.pointSampleWidth>0):
+            blur = cv2.GaussianBlur(image,(self.pointSampleWidth,self.pointSampleWidth),0)
+        else:
+            blur=image.copy()
         self.blurredImage=blur
-        ret,self.BWImage=cv2.threshold(blur,avg,255,cv2.THRESH_BINARY)
+        blur=cv2.cvtColor(blur,cv2.COLOR_RGB2GRAY)
+        self.BWImage=cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 11,0)
+        self.BWImage=cv2.cvtColor(self.BWImage,cv2.COLOR_GRAY2RGB)
+        #ret,self.BWImage=cv2.threshold(blur,avg+self.colorBias,255,cv2.THRESH_BINARY)
         cv2.imwrite("bw.jpg", self.BWImage);
 
     def countErrors(self):
@@ -157,7 +164,7 @@ class NodeNetwork:
 
 
     #draws the current grid onto an image
-    def draw(self,im,samplePointSize=2):
+    def draw(self,im,samplePointSize=2,showGrid=True):
 
         #draw all fixed points
         sortedPoints=self.getSortedFixedPoints()
@@ -188,15 +195,16 @@ class NodeNetwork:
                 bottomRightCoord=bottomRight["node"].xyAsArray()
 
                 #draw the outline and grid
-                im=cv2.line(im,xyArrayToIntTuple(topLeftCoord),xyArrayToIntTuple(topRightCoord),BLACK,1)
-                im=cv2.line(im,xyArrayToIntTuple(topLeftCoord),xyArrayToIntTuple(bottomLeftCoord),BLACK,1)
-                im=cv2.line(im,xyArrayToIntTuple(bottomLeftCoord),xyArrayToIntTuple(bottomRightCoord),BLACK,1)
-                im=cv2.line(im,xyArrayToIntTuple(topRightCoord),xyArrayToIntTuple(bottomRightCoord),BLACK,1)
+                if showGrid or self.dragging:
+                    im=cv2.line(im,xyArrayToIntTuple(topLeftCoord),xyArrayToIntTuple(topRightCoord),BLACK,1)
+                    im=cv2.line(im,xyArrayToIntTuple(topLeftCoord),xyArrayToIntTuple(bottomLeftCoord),BLACK,1)
+                    im=cv2.line(im,xyArrayToIntTuple(bottomLeftCoord),xyArrayToIntTuple(bottomRightCoord),BLACK,1)
+                    im=cv2.line(im,xyArrayToIntTuple(topRightCoord),xyArrayToIntTuple(bottomRightCoord),BLACK,1)
 
-                for (startX,startY,endX,endY) in zip(np.linspace(topLeftCoord[0],topRightCoord[0],cols+1), np.linspace(topLeftCoord[1],topRightCoord[1],cols+1), np.linspace(bottomLeftCoord[0],bottomRightCoord[0],cols+1), np.linspace(bottomLeftCoord[1],bottomRightCoord[1],cols+1)):
-                    im=cv2.line(im,(int(startX),int(startY)),(int(endX),int(endY)),RED,1)
-                for (startX,startY,endX,endY) in zip(np.linspace(topLeftCoord[0],bottomLeftCoord[0],rows+1), np.linspace(topLeftCoord[1],bottomLeftCoord[1],rows+1), np.linspace(topRightCoord[0],bottomRightCoord[0],rows+1), np.linspace(topRightCoord[1],bottomRightCoord[1],rows+1)):
-                    im=cv2.line(im,(int(startX),int(startY)),(int(endX),int(endY)),RED,1)
+                    for (startX,startY,endX,endY) in zip(np.linspace(topLeftCoord[0],topRightCoord[0],cols+1), np.linspace(topLeftCoord[1],topRightCoord[1],cols+1), np.linspace(bottomLeftCoord[0],bottomRightCoord[0],cols+1), np.linspace(bottomLeftCoord[1],bottomRightCoord[1],cols+1)):
+                        im=cv2.line(im,(int(startX),int(startY)),(int(endX),int(endY)),RED,1)
+                    for (startX,startY,endX,endY) in zip(np.linspace(topLeftCoord[0],bottomLeftCoord[0],rows+1), np.linspace(topLeftCoord[1],bottomLeftCoord[1],rows+1), np.linspace(topRightCoord[0],bottomRightCoord[0],rows+1), np.linspace(topRightCoord[1],bottomRightCoord[1],rows+1)):
+                        im=cv2.line(im,(int(startX),int(startY)),(int(endX),int(endY)),RED,1)
 
         #draw the sample points if we are not dragging
         if not self.dragging:

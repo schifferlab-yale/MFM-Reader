@@ -47,58 +47,25 @@ RED=(0,0,255)
 shiftConstant=args.spacing;
 show_ref_image=False
 
-
-
-pattern=[\
-["L","B","R"],\
-["R","L","B"]\
-]
-#R for right facing
-#L for left facing
-#B for blank
-
+pattern=[[True,True],[True,False]]
 rowOffset=0
 colOffset=0
-def getIslandType(row,col):
-    return pattern[(row+rowOffset)%(len(pattern))][(col+colOffset)%len(pattern[0])]
 
 def isRowOffset(row):
     return (row%2==0 and rowOffset%2==1) or (row%2==1 and rowOffset%2==0) 
 
-def getIslandAngle(islandType,code):
-
-    for number in code:#remove bad data
-        if number==0: return None
-
-    code=[code[0],code[1],code[3]]#remove center
-
-    if code[0]==code[1] and code[0]==code[2]:#remove bad data
-        return None
-
-    if islandType=="R":
-        angles=[4*np.pi/3,0,2*np.pi/3]
-    elif islandType=="L":
-        angles=[-np.pi/3,np.pi,np.pi/3]
-    
-    direction=\
-        code[0]*np.array([np.cos(angles[0]),np.sin(angles[0])])+\
-        code[1]*np.array([np.cos(angles[1]),np.sin(angles[1])])+\
-        code[2]*np.array([np.cos(angles[2]),np.sin(angles[2])])#skip island center
-    
+def hasIsland(row,col):
+    return pattern[(row+rowOffset)%len(pattern)][(col+colOffset)%len(pattern[0])]
 
 
-    angle=round(np.arctan2(direction[1],direction[0])/np.pi*180,4)%360
-    return angle
 
 
 
 class YShapeNodeNetwork(NodeNetwork):
     def getSamplePointsFromSquare(self,topLeft,topRight,bottomLeft,bottomRight,row=0,col=0):
 
-        islandType=getIslandType(row,col)
-        if islandType=="B":
+        if not hasIsland(row,col):
             return []
-
 
         
         boxWidth=((topRight[0]-topLeft[0])+(bottomLeft[1]-topLeft[1]))/2
@@ -107,20 +74,17 @@ class YShapeNodeNetwork(NodeNetwork):
 
         center=np.array([topLeft[0]+topRight[0]+bottomLeft[0]+bottomRight[0], topLeft[1]+topRight[1]+bottomLeft[1]+bottomRight[1]])/4
 
-        if islandType=="R":
-            topArmAngle=4*np.pi/3
-            middleArmAngle=0
-            bottomArmAngle=2*np.pi/3
-        elif islandType=="L":
-            topArmAngle=-np.pi/3
-            middleArmAngle=np.pi
-            bottomArmAngle=np.pi/3
+
+        arm1Angle=math.pi/2
+        arm2Angle=math.pi/6*7
+        arm3Angle=math.pi/6*11
+
         
         armLocs=[
-            center+armRadius*np.array([np.cos(topArmAngle),np.sin(topArmAngle)]),
-            center+armRadius*np.array([np.cos(middleArmAngle),np.sin(middleArmAngle)]),
+            center+armRadius*np.array([np.cos(arm1Angle),np.sin(arm1Angle)]),
+            center+armRadius*np.array([np.cos(arm2Angle),np.sin(arm2Angle)]),
             center,
-            center+armRadius*np.array([np.cos(bottomArmAngle),np.sin(bottomArmAngle)]),
+            center+armRadius*np.array([np.cos(arm3Angle),np.sin(arm3Angle)]),
         ]
         samplePoints=[list(i) for i in armLocs]
 
@@ -166,19 +130,13 @@ class YShapeNodeNetwork(NodeNetwork):
             return False
     
     def dataAsString(self):
-        string="row, col, leg 1 angle, leg 1 color, leg 2 color, leg 3 color, center color\n"
+        string="row,col,leg 1 angle,leg 1 color,leg 2 color,leg 3 color,center color\n"
         for (rowI, row) in enumerate(self.samplePoints):
             for (vertexI, vertex) in enumerate(row):
-                type=getIslandType(rowI,vertexI)
-
-                if type=="B" or vertex==[]:
+                if(len(vertex)==0):
                     continue
-                elif type=="L":
-                    leg1Angle=60
-                    colorCode=[vertex[3][2], vertex[1][2], vertex[0][2], vertex[2][2]]
-                elif type=="R":
-                    leg1Angle=0
-                    colorCode=[vertex[1][2], vertex[3][2], vertex[0][2], vertex[2][2]]
+                leg1Angle=90
+                colorCode=[vertex[0][2], vertex[1][2], vertex[3][2], vertex[2][2]]
                 
                 colOffset=isRowOffset(rowI)*0.5
 
